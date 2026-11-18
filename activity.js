@@ -96,6 +96,8 @@ function renderSummaryTab() {
     weeks.push({ label: fmtDateShort(ws), y: logsBetween(ws, we).length, hl: i === 0 });
   }
   html += `<div class="section-title">Frequência semanal</div><div class="card">${barChart(weeks)}<div class="small muted center">Treinos por semana · últimas 8 semanas</div></div>`;
+  html += consistencyHeatmap();
+  html += deloadCard(false);
 
   // fadiga muscular
   const fat = fatigueMap();

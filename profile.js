@@ -47,6 +47,11 @@ SHEETS.profile = {
         ${toggle('wakeLock', 'Manter a tela ligada', 'Durante o treino')}
       </div>
 
+      <div class="section-title">Dieta e IA</div><div class="card list-card">
+        <button class="menu-row" data-action="openAiSetup"><span>🤖</span><b>Configurar IA (foto do prato)</b><small class="muted">${S.ai.key ? 'ativa' : 'não configurada'}</small><span class="chev">›</span></button>
+        <button class="menu-row" data-action="openGoals"><span>🎯</span><b>Metas de calorias e macros</b><span class="chev">›</span></button>
+      </div>
+
       <div class="section-title">Aparência</div><div class="card">${seg('sheet:theme', [['dark', 'Escuro'], ['light', 'Claro'], ['auto', 'Automático']], S.theme)}</div>
 
       <div class="section-title">Lembretes</div><div class="card">
@@ -68,6 +73,7 @@ SHEETS.profile = {
         <button class="menu-row" data-action="openAchievements"><span>🏆</span><b>Conquistas</b><span class="chev">›</span></button>
         <button class="menu-row" data-action="openTool" data-tool="plates"><span>🏋️</span><b>Calculadora de anilhas</b><span class="chev">›</span></button>
         <button class="menu-row" data-action="openTool" data-tool="orm"><span>📈</span><b>Calculadora de 1RM</b><span class="chev">›</span></button>
+        <button class="menu-row" data-action="openHiit"><span>⏱️</span><b>Cronômetro HIIT / intervalos</b><span class="chev">›</span></button>
       </div>
       <button class="btn ghost full danger" data-action="wipeData">Apagar todos os dados</button>
       <p class="small muted center">Forja · versão 2.0 · feito para uso pessoal</p>
@@ -169,7 +175,7 @@ async function exportData() {
   let photos = [];
   try { photos = await PhotoDB.all(); } catch (e) { photos = []; }
   const withPhotos = photos.length ? confirm(`Incluir suas ${photos.length} fotos de progresso no backup? (o arquivo fica maior)`) : false;
-  const data = JSON.stringify({ app: APP_NAME, version: 2, exportedAt: new Date().toISOString(), data: { ...S, draft: null }, photos: withPhotos ? photos : [] });
+  const data = JSON.stringify({ app: APP_NAME, version: 2, exportedAt: new Date().toISOString(), data: { ...S, draft: null, ai: { ...S.ai, key: '' } }, photos: withPhotos ? photos : [] });
   shareFile(new File([data], `forja-backup-${todayKey()}.json`, { type: 'application/json' }));
 }
 function importData(file) {
@@ -181,7 +187,8 @@ function importData(file) {
       if (!Array.isArray(d.plans) || !Array.isArray(d.logs)) throw new Error('formato');
       if (!confirm(`Importar backup com ${d.plans.length} treino(s) e ${d.logs.length} registro(s)? Os dados atuais deste aparelho serão substituídos.`)) return;
       const theme = S.theme;
-      localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({}, d, { theme, draft: null, onboarded: true })));
+      const keep = S.ai;
+      localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({}, d, { theme, draft: null, onboarded: true, ai: Object.assign({}, d.ai || {}, { key: keep.key, model: keep.model }) })));
       load();
       if (parsed.photos && parsed.photos.length) { await PhotoDB.clear(); for (const p of parsed.photos) await PhotoDB.put(p); UI.photos = null; }
       closeAllSheets(); toast('Backup importado');

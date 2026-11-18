@@ -62,6 +62,8 @@ function defaults() {
     body: { weights: [], goal: null, measures: [], assess: [] },
     achievements: {}, customExercises: [], dismissed: {}, onboarded: false,
     instant: { dur: 45, equip: 'academia', level: 2, goal: 'hipertrofia', groups: ['peito', 'triceps'] },
+    diet: { auto: true, addTraining: false, goal: { kcal: 2200, p: 150, c: 250, f: 70, water: 2500 }, days: {}, favorites: [], recent: [], customFoods: [] },
+    ai: { key: '', model: '', usage: { date: '', n: 0 }, limit: 20 },
   };
 }
 
@@ -88,6 +90,8 @@ function load() {
     S.settings = Object.assign(d.settings, raw.settings || {});
     S.body = Object.assign(d.body, raw.body || {});
     S.instant = Object.assign(d.instant, raw.instant || {});
+    S.diet = Object.assign(d.diet, raw.diet || {});
+    S.ai = Object.assign(d.ai, raw.ai || {});
     S.version = 2;
     indexExercises();
     // migração da versão 1: completa campos novos
@@ -319,6 +323,9 @@ function checkAchievements(ctx = {}) {
   if (ws.some((w) => w.planned) && ws.filter((w) => w.planned).every((w) => w.st === 'done')) give('week');
   if (S.body.weights.length || S.body.measures.length) give('body');
   if (ctx.photo) give('photo');
+  const ddays = Object.values((S.diet && S.diet.days) || {});
+  if (ddays.some((dd) => Object.values(dd.meals || {}).some((m) => m.length))) give('meal1');
+  if (typeof goalsFor === 'function' && Object.entries((S.diet && S.diet.days) || {}).some(([k, dd]) => dd.water && dd.water >= goalsFor(k).water)) give('water');
   if (got.length) save();
   return got;
 }

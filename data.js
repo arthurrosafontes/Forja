@@ -559,6 +559,8 @@ const ACHIEVEMENTS = [
   { id: 'body', n: 'De olho no corpo', d: 'Registre seu peso ou medidas', ic: '📏' },
   { id: 'photo', n: 'Antes e depois', d: 'Adicione uma foto de progresso', ic: '📸' },
   { id: 'variety', n: 'Variado', d: 'Faça 30 exercícios diferentes', ic: '🎯' },
+  { id: 'meal1', n: 'Diário aberto', d: 'Registre sua primeira refeição', ic: '🍽️' },
+  { id: 'water', n: 'Hidratado', d: 'Bata a meta de água de um dia', ic: '💧' },
 ];
 
 const FAQ = [

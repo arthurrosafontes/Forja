@@ -24,6 +24,8 @@ PAGES.home = function () {
   }
   html += renderCalendar();
   html += activePlanCard();
+  html += dietHomeCard();
+  html += deloadBanner();
   html += renderDayPanel();
   html += `<div class="section-title">Atalhos</div>
   <div class="quick">
@@ -32,6 +34,8 @@ PAGES.home = function () {
     <button class="qcard" data-action="openTool" data-tool="plates"><span class="qi">🏋️</span><b>Anilhas</b><small>Quanto pôr na barra</small></button>
     <button class="qcard" data-action="openTool" data-tool="orm"><span class="qi">📈</span><b>Calculadora 1RM</b><small>Carga máxima e %</small></button>
     <button class="qcard" data-action="openBodyEntry" data-kind="weight"><span class="qi">⚖️</span><b>Registrar peso</b><small>${currentWeight() ? fmtNum(currentWeight(), 1) + ' kg atual' : 'Acompanhe seu corpo'}</small></button>
+    <button class="qcard" data-action="openHiit"><span class="qi">⏱️</span><b>HIIT / Intervalos</b><small>Tabata, EMOM e mais</small></button>
+    <button class="qcard" data-action="aiPhoto"><span class="qi">📸</span><b>Foto do prato</b><small>Calorias com IA</small></button>
     <button class="qcard" data-action="openAchievements"><span class="qi">🏆</span><b>Conquistas</b><small>${Object.keys(S.achievements).length}/${ACHIEVEMENTS.length} desbloqueadas</small></button>
   </div>`;
   return html;

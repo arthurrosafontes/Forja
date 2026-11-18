@@ -70,6 +70,10 @@
       <svg viewBox="0 0 24 24"><path d="M1 10h2V8h2v8H3v-2H1zM6 6h3v12H6zM15 6h3v12h-3zM19 8h2v2h2v4h-2v2h-2zM9 11h6v2H9z"/></svg>
       <span>Exercícios</span>
     </button>
+    <button data-action="tab" data-tab="diet">
+      <svg viewBox="0 0 24 24"><path d="M6 2h1.6v6.2h1V2h1.6v6.2h1V2h1.6v7.4a3 3 0 0 1-2.2 2.9V22H8.4v-9.7A3 3 0 0 1 6 9.4zM17.5 2C19 2 20 4 20 7.5c0 2.6-.8 4.4-2 5V22h-2.2V2z"/></svg>
+      <span>Dieta</span>
+    </button>
     <button data-action="tab" data-tab="activity">
       <svg viewBox="0 0 24 24"><path d="M4 20h3V10H4zm6 0h3V4h-3zm6 0h3v-7h-3z"/></svg>
       <span>Atividades</span>
@@ -84,6 +88,7 @@
   <div id="toast" class="toast"></div>
   <input type="file" id="importFile" accept="application/json,.json" hidden>
   <input type="file" id="photoFile" accept="image/*" hidden>
+  <input type="file" id="mealPhoto" accept="image/*" hidden>
 
   <script src="data.js"></script>
   <script src="figures.js"></script>
@@ -95,6 +100,9 @@
   <script src="exercises.js"></script>
   <script src="activity.js"></script>
   <script src="bodyview.js"></script>
+  <script src="foods.js"></script>
+  <script src="diet.js"></script>
+  <script src="extras.js"></script>
   <script src="profile.js"></script>
 </body>
 </html>

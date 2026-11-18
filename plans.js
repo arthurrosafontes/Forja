@@ -21,7 +21,7 @@ function programDaysAsPlan(p) {
 const programTags = (p) => [LEVELS[p.level], `${Object.keys(p.days).length} dias`, p.place === 'casa' ? 'Em casa' : 'Academia', GOALS[p.goal].n, p.weeks ? `${p.weeks} semanas` : ''].filter(Boolean);
 
 PAGES.plans = function () {
-  let html = `<div class="page-head"><h1>Treinos</h1>${UI.plansSeg === 'mine' ? '<button class="btn primary sm" data-action="newPlan">+ Criar</button>' : ''}</div>`;
+  let html = `<div class="page-head"><h1>Treinos</h1>${UI.plansSeg === 'mine' ? '<div class="row-btns gap"><button class="btn ghost sm" data-action="importPlan">Importar</button><button class="btn primary sm" data-action="newPlan">+ Criar</button></div>' : ''}</div>`;
   html += seg('plansSeg', [['mine', 'Meus treinos'], ['explore', 'Explorar']], UI.plansSeg);
   html += UI.plansSeg === 'explore' ? renderExplore() : renderMyPlans();
   return html;
@@ -136,7 +136,7 @@ SHEETS.planView = {
         return `<div class="day-block"><div class="day-num">${DAY_SHORT[wd]}</div><div style="flex:1"><h3>${esc(d.title || 'Treino')}</h3><div class="small muted">${d.exercises.length} exercícios${last ? ` · último: ${fmtDateShort(last.date)}` : ''}</div></div><button class="btn sm" data-action="trainDay" data-id="${p.id}" data-wd="${wd}">Treinar</button></div>
         <div class="card"><ul class="ex-list">${d.exercises.map((x) => `<li class="ex-row" data-action="openExercise" data-id="${x.exId || ''}" data-name="${esc(x.name)}">${exThumb(x.name, x.exId)}<div class="ex-info"><div class="ex-name">${esc(x.name)} ${techBadge(x.tech)}</div><div class="ex-meta">${x.sets} × ${esc(x.reps)} • ${fmtRest(x.rest)}</div></div></li>`).join('')}</ul></div>`;
       }).join('') || emptyState('Treino vazio', 'Toque em Editar para adicionar exercícios.')}
-      <div class="row-actions"><button class="link" data-action="dupPlan" data-id="${p.id}">Duplicar</button><button class="link" data-action="exportIcs" data-id="${p.id}">Lembretes no Calendário</button></div>
+      <div class="row-actions"><button class="link" data-action="dupPlan" data-id="${p.id}">Duplicar</button><button class="link" data-action="exportIcs" data-id="${p.id}">Lembretes no Calendário</button><button class="link" data-action="sharePlan" data-id="${p.id}">Compartilhar</button></div>
     </div>`;
   },
 };
