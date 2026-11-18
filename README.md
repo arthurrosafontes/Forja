@@ -9,7 +9,7 @@ Não precisa de servidor nem banco de dados: os dados ficam salvos no próprio a
 - `app.js` — toda a lógica (calendário, treinos, registro, gráfico, histórico, backup)
 - `manifest.json` — nome/ícone do app na tela inicial
 - `sw.js` — service worker (faz o app abrir sem internet)
-- `icons/` — ícones
+- `apple-touch-icon.png`, `icon-*.png`, `icon.svg` — ícones (todos na raiz, de propósito)
 
 ## Testar no computador
 Abra um terminal nesta pasta e rode:
@@ -18,11 +18,16 @@ Abra um terminal nesta pasta e rode:
 
 Depois acesse http://localhost:8000
 
-## Publicar de graça (Netlify + GitHub)
-1. Crie um repositório no GitHub e suba esta pasta.
-2. No Netlify: Add new site → Import an existing project → GitHub → escolha o repositório.
-   (Não precisa de comando de build; pasta de publicação: a raiz.)
-3. A cada `git push`, o site atualiza sozinho.
+## Publicar de graça (GitHub Pages — sem selo de propaganda)
+1. Crie um repositório **público** no GitHub (ex: `forja`) e suba TODOS os arquivos desta pasta na raiz dele.
+2. No repositório: **Settings → Pages → Build and deployment → Source: Deploy from a branch**,
+   escolha **main** e a pasta **/ (root)** → **Save**.
+3. Em 1–2 minutos o link aparece no topo dessa mesma página:
+   `https://SEU-USUARIO.github.io/forja/`
+4. Para atualizar: suba os arquivos novos no repositório (commit/push). O site atualiza sozinho.
+
+Obs.: projetos gratuitos novos na Netlify (desde ago/2026) mostram um selo "Powered by Netlify"
+que não dá para desligar no plano grátis — por isso o GitHub Pages.
 
 ## Instalar no iPhone
 Abra o link no **Safari** → botão Compartilhar → **Adicionar à Tela de Início**.
@@ -30,5 +35,5 @@ Abra o link no **Safari** → botão Compartilhar → **Adicionar à Tela de In�
 ## Dicas
 - Use **Histórico → Exportar backup** de vez em quando. Se apagar o app da tela inicial, os dados vão junto.
 - Para trocar o nome do app: mude "Forja" em `index.html` (title, apple-mobile-web-app-title, brand-name) e em `manifest.json`.
-- O ícone da tela inicial vem de `icons/icon-180.png` (linha `apple-touch-icon` no `index.html`). O iPhone copia o ícone no momento em que você adiciona o app; se trocar o ícone depois, remova o app da tela inicial e adicione de novo.
+- O ícone da tela inicial vem de `apple-touch-icon.png` (linha `apple-touch-icon` no `index.html`). O iPhone copia o ícone no momento em que você adiciona o app; se trocar o ícone depois, remova o app da tela inicial e adicione de novo.
 - Se uma atualização demorar a aparecer, feche o app e abra de novo.

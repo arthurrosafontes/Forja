@@ -1,18 +1,18 @@
 // Service worker: deixa o app abrir mesmo sem internet.
 // Estratégia: tenta a rede primeiro (para pegar atualizações) e,
 // se a internet estiver ruim ou ausente, usa a cópia salva.
-const CACHE = 'forja-v2'; // mude o número a cada atualização
+const CACHE = 'forja-v3'; // mude o número a cada atualização
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
-  './icons/icon.svg',
-  './icons/icon-180.png',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png',
+  './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
+  './icon-maskable-512.png',
 ];
 
 self.addEventListener('install', (e) => {
