@@ -440,6 +440,7 @@ function drawSheet(keepScroll) {
   document.body.classList.add('locked');
   const body = $('#sheetBody');
   if (body) body.scrollTop = keepScroll ? top.scroll || 0 : 0;
+  if (SHEETS[top.type].after) SHEETS[top.type].after(top.data);
   startFigures();
   if (top.type === 'workout') requestWake(); else if (!UI.stack.some((x) => x.type === 'workout')) releaseWake();
 }

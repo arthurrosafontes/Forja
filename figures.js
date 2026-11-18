@@ -215,99 +215,282 @@ function poseAt(pat, t) {
   return out;
 }
 
-const fseg = (a, b, w, cls) => `<line class="${cls}" x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke-width="${w}"/>`;
-const mir = (p) => [120 - p[0], p[1]];
 
-function propAt(prop, p, front) {
-  if (!p) return '';
-  const [x, y] = p;
-  switch (prop) {
-    case 'barbell': case 'barbell_back': case 'barbell_hip':
-      return `<circle class="f-prop" cx="${x}" cy="${y}" r="7.5"/><circle class="f-prop2" cx="${x}" cy="${y}" r="2"/>`;
-    case 'dumbbell':
-      return front ? `<rect class="f-propf" x="${x - 2.5}" y="${y - 5}" width="5" height="10" rx="1.5"/>` : `<rect class="f-propf" x="${x - 5}" y="${y - 2.5}" width="10" height="5" rx="1.5"/>`;
-    case 'handle': case 'pad': return `<circle class="f-propf" cx="${x}" cy="${y}" r="2.6"/>`;
-    case 'sled': return `<rect class="f-propf" x="${x - 2}" y="${y - 9}" width="4" height="18" rx="1.5" transform="rotate(-42 ${x} ${y})"/>`;
-    default: return '';
+/* ajustes por padrão: corpo de bruços (prone), largura lateral das mãos/cotovelos (zw), profundidade em padrões frontais (fd) */
+const PAT_EXTRA = {
+  pushup: { prone: 1, zw: { ha: 13, el: 13 } }, plank: { prone: 1, zw: { ha: 6, el: 9 } }, leg_curl: { prone: 1, zw: { ha: 8, el: 10 } }, back_ext: { prone: 1, zw: { ha: 4, el: 8 } },
+  bench: { zw: { ha: 15, el: 15 } }, fly: { zw: { ha: 20, el: 17 } }, skull: { zw: { ha: 6, el: 8 } }, pullover: { zw: { ha: 4, el: 8 } },
+  chest_press: { zw: { ha: 13, el: 13 } }, pulldown: { zw: { ha: 18, el: 17 } }, pullup: { zw: { ha: 18, el: 16 } }, straight_pulldown: { zw: { ha: 9, el: 11 } },
+  squat: { zw: { ha: 17, el: 15 } }, row: { zw: { ha: 12, el: 12 } }, deadlift: { zw: { ha: 11 } }, stiff: { zw: { ha: 11 } }, hip_thrust: { zw: { ha: 14, el: 13 } },
+  goblet: { zw: { ha: 3, el: 9 } }, seated_row: { zw: { ha: 5, el: 10 } }, face_pull: { zw: { ha: 7, el: 15 } }, cable_crunch: { zw: { ha: 4, el: 8 } },
+  overhead_ext: { zw: { ha: 3, el: 7 } }, crunch: { zw: { ha: 7, el: 12 } }, wrist_curl: { zw: { ha: 8 } }, leg_press: { zw: { kn: 8, ft: 9 } },
+  pec_deck: { fd: { kn: 20, ft: 22, el: 6, ha: 12, to: 28 } }, abduction: { fd: { kn: 22, ft: 23, el: 4, ha: 10, to: 29 } },
+  cable_cross: { fd: { el: 5, ha: 12 } }, upright_row: { fd: { ha: 5, el: -2 } }, shoulder_press: { fd: { el: 3, ha: 2 } }, lateral_raise: { fd: { ha: 3 } }, shrug: { fd: { ha: 2 } },
+};
+
+/* =========================================================
+   Desenho 3D simplificado: as poses (2D) viram pontos 3D e são
+   projetadas no ângulo escolhido. Corpo com volume + músculos.
+   ========================================================= */
+const ANGLES = [
+  { k: 'lat', n: 'Lateral', a: 0 },
+  { k: 'tq', n: '3/4', a: -40 },
+  { k: 'fr', n: 'Frente', a: -90 },
+  { k: 'bk', n: 'Costas', a: 90 },
+];
+const defaultAngle = (ex) => ((PATTERNS[ex && ex.a] || {}).front ? 2 : 0);
+const ZW = { sh: 8.5, el: 10.5, ha: 11, hip: 5.5, kn: 5.8, ft: 6.2, to: 6.2 };
+const V = {
+  add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k],
+  dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+  len: (a) => Math.hypot(a[0], a[1], a[2]),
+  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+  lerp: (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t],
+};
+
+/* pose 2D → esqueleto 3D (lado R = perto na vista lateral, L = longe) */
+function lift(pat, pose, ex) {
+  const X = PAT_EXTRA[ex.a] || {};
+  const zw = Object.assign({}, ZW, X.zw || {});
+  const fd = X.fd || {};
+  const rot = (ex.r || 0) * Math.PI / 180, cr = Math.cos(rot), sr = Math.sin(rot);
+  const R = (p) => { if (!rot) return p; const dx = p[0] - 50, dy = p[1] - 74; return [50 + dx * cr - dy * sr, 74 + dx * sr + dy * cr, p[2]]; };
+  const J = { R: {}, L: {} };
+  const toeOf = (ft, kn) => (pat.front ? [ft[0] + 7, ft[1] + 1] : [ft[0] + 6, ft[1] + 1]);
+  if (pat.front) {
+    for (const j of ['sh', 'el', 'ha', 'hip', 'kn', 'ft']) {
+      const p = pose[j]; if (!p) continue;
+      const z = p[0] - 60, x = 60 + (fd[j] || 0);
+      J.R[j] = R([x, p[1], z]); J.L[j] = R([x, p[1], -z]);
+    }
+    const tz = pose.ft[0] - 60;
+    J.R.to = R([60 + (fd.to || 7), pose.ft[1] + 1.5, tz]); J.L.to = R([60 + (fd.to || 7), pose.ft[1] + 1.5, -tz]);
+    J.head = R([60, pose.head[1], 0]);
+  } else {
+    const far = { el: 'el2', ha: 'ha2', kn: 'kn2', ft: 'ft2', to: 'to2' };
+    for (const j of ['sh', 'el', 'ha', 'hip', 'kn', 'ft', 'to']) {
+      let p = pose[j];
+      if (!p && j === 'to') p = toeOf(pose.ft);
+      if (!p) continue;
+      J.R[j] = R([p[0], p[1], zw[j]]);
+      let q = far[j] && pose[far[j]];
+      if (!q && j === 'to' && pose.ft2) q = toeOf(pose.ft2);
+      if (!q) q = p;
+      J.L[j] = R([q[0], q[1], -zw[j]]);
+    }
+    J.head = R([pose.head[0], pose.head[1], 0]);
   }
+  J.oneArm = !!pose.el2 && !pat.front;
+  return J;
 }
 
-function drawPose(pat, pose, ex) {
-  const prop = ex ? ex.p : null;
-  let s = '';
-  // ambiente
-  if (pat.floor !== false) s += `<line class="f-env" x1="4" y1="108" x2="116" y2="108" stroke-width="1.5"/>`;
+/* ---- projeção ---- */
+function makeProj(angleDeg) {
+  const a = angleDeg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return {
+    p: (P) => [60 + (P[0] - 60) * c + P[2] * s, P[1]],
+    d: (P) => -(P[0] - 60) * s + P[2] * c,
+    dirD: (D) => -D[0] * s + D[2] * c,
+    c, s,
+  };
+}
+function hull(pts) {
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+const f1 = (n) => n.toFixed(1);
+const polyStr = (pts) => pts.map((q) => `${f1(q[0])},${f1(q[1])}`).join(' ');
+/* segmento afunilado (membro) entre dois pontos projetados */
+function capsule(a, b, w1, w2, cls) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 0.001;
+  const nx = -dy / L, ny = dx / L;
+  const r1 = w1 / 2, r2 = w2 / 2;
+  const pts = [[a[0] + nx * r1, a[1] + ny * r1], [b[0] + nx * r2, b[1] + ny * r2], [b[0] - nx * r2, b[1] - ny * r2], [a[0] - nx * r1, a[1] - ny * r1]];
+  return `<g class="${cls}"><polygon points="${polyStr(pts)}"/><circle cx="${f1(a[0])}" cy="${f1(a[1])}" r="${f1(r1)}"/><circle cx="${f1(b[0])}" cy="${f1(b[1])}" r="${f1(r2)}"/></g>`;
+}
+function ellipseAlong(c, dir, rx, ry, cls) {
+  const ang = Math.atan2(dir[1], dir[0]) * 180 / Math.PI;
+  return `<ellipse class="${cls}" cx="${f1(c[0])}" cy="${f1(c[1])}" rx="${f1(rx)}" ry="${f1(ry)}" transform="rotate(${f1(ang)} ${f1(c[0])} ${f1(c[1])})"/>`;
+}
+
+/* músculos-alvo → classes */
+function muscleClass(ex) {
+  const cls = {};
+  (ex.s || []).forEach((m) => { cls[m] = 'mu-s'; });
+  (ex.m || []).forEach((m) => { cls[m] = 'mu-p'; });
+  return (k) => cls[k] || 'mu';
+}
+
+function render3D(pat, pose, ex, angleIdx) {
+  const ang = ANGLES[angleIdx] || ANGLES[0];
+  const PR = makeProj(ang.a);
+  const J = lift(pat, pose, ex);
+  const X = PAT_EXTRA[ex.a] || {};
+  const mc = muscleClass(ex);
+  const items = []; // [profundidade, svg]
+  const push = (d, svg) => items.push([d, svg]);
+  const P = PR.p, D = PR.d;
+
+  // ambiente (bancos, máquinas) em 3D simples
+  let bg = '';
+  if (pat.floor !== false) bg += `<ellipse class="f-shadow" cx="60" cy="108.5" rx="34" ry="3"/><line class="f-env" x1="2" y1="108" x2="118" y2="108" stroke-width="1.2"/>`;
+  const rot = (ex.r || 0) * Math.PI / 180;
+  const R2 = (x, y) => { if (!rot) return [x, y]; const dx = x - 50, dy = y - 74; return [50 + dx * Math.cos(rot) - dy * Math.sin(rot), 74 + dx * Math.sin(rot) + dy * Math.cos(rot)]; };
   (pat.env || []).forEach((e) => {
-    if (e[0] === 'rect') s += `<rect class="f-envf" x="${e[1]}" y="${e[2]}" width="${e[3]}" height="${e[4]}" rx="1.5"/>`;
-    else s += `<line class="f-env" x1="${e[1]}" y1="${e[2]}" x2="${e[3]}" y2="${e[4]}" stroke-width="${e[5] || 2}"/>`;
+    if (e[0] === 'rect') {
+      const [, x, y, w, h] = e, zh = w < 6 || h < 6 && w < 20 ? 3 : 11;
+      const corners = [];
+      [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([cx, cy]) => { const q = R2(cx, cy); corners.push(P([q[0], q[1], zh]), P([q[0], q[1], -zh])); });
+      bg += `<polygon class="f-envf" points="${polyStr(hull(corners))}"/>`;
+    } else {
+      const a = R2(e[1], e[2]), b = R2(e[3], e[4]);
+      bg += `<line class="f-env" x1="${f1(P([a[0], a[1], 0])[0])}" y1="${f1(a[1])}" x2="${f1(P([b[0], b[1], 0])[0])}" y2="${f1(b[1])}" stroke-width="${e[5] || 2}"/>`;
+    }
   });
-  // cabo
-  if (pat.anchor && (prop === 'handle' || prop === 'cable_ankle' || ex == null)) {
-    const to = pose[pat.anchorTo || 'ha'];
-    s += fseg(pat.anchor, to, 1, 'f-cable');
-    if (pat.front) s += fseg(mir(pat.anchor), mir(to), 1, 'f-cable');
+  // cabos
+  if (pat.anchor && ['handle', 'cable_ankle'].includes(ex.p)) {
+    const to = pat.anchorTo || 'ha';
+    const sides = to === 'ft' ? ['R'] : J.oneArm ? ['R'] : ['R', 'L'];
+    sides.forEach((sd) => {
+      const az = pat.front ? (sd === 'R' ? pat.anchor[0] - 60 : -(pat.anchor[0] - 60)) : J[sd][to][2];
+      const ax = pat.front ? 60 : pat.anchor[0];
+      const A3 = [ax, pat.anchor[1], az], H = P(J[sd][to]), A = P(A3);
+      bg += `<line class="f-cable" x1="${f1(A[0])}" y1="${f1(A[1])}" x2="${f1(H[0])}" y2="${f1(H[1])}" stroke-width="1"/>`;
+    });
   }
-  const hl = new Set(pat.hl || []);
-  const C = (part) => (hl.has(part) ? 'f-hl' : 'f-body');
-  const toe = (ft, to) => to || [ft[0] + 6, ft[1] + 1];
 
-  if (pat.front) {
-    const P = pose;
-    const neck = [60, P.sh[1] - 2], pel = [60, P.hip[1]];
+  // tronco
+  const shM = V.lerp(J.R.sh, J.L.sh, 0.5), hipM = V.lerp(J.R.hip, J.L.hip, 0.5);
+  const sp = V.sub(hipM, shM), spL = V.len(sp) || 1;
+  let n = V.norm([sp[1], -sp[0], 0]); if (X.prone) n = V.mul(n, -1);
+  const Z = [0, 0, 1];
+  const up = V.norm(V.mul(sp, -1));
+  const tPt = (t, z, off) => V.add(V.add(V.add(shM, V.mul(sp, t)), V.mul(Z, z)), V.mul(n, off));
+  const tor = [];
+  [[0.02, 9.6, 4.6, 4.2], [0.4, 8.4, 5.2, 4.4], [0.72, 6.6, 4.2, 3.8], [1, 7.2, 4, 4.8]].forEach(([t, hw, fw, bw]) => {
+    [hw, -hw].forEach((z) => { tor.push(P(tPt(t, z, fw))); tor.push(P(tPt(t, z, -bw))); });
+  });
+  const torD = D(V.lerp(shM, hipM, 0.5)) - 0.4;
+  push(torD, `<polygon class="f-skin" points="${polyStr(hull(tor))}"/>`);
+  // músculos do tronco (cada um com sua profundidade; os de trás ficam escondidos)
+  const belly = (C3, rx, ry, dir3, cls, base = torD) => {
+    const c = P(C3), dd = PR.p(V.add(C3, dir3)), dir = [dd[0] - c[0], dd[1] - c[1]];
+    push(base + 0.05 + (D(C3) - base) * 0.6, ellipseAlong(c, dir, rx, ry, cls));
+  };
+  [4.3, -4.3].forEach((z) => belly(tPt(0.2, z, 4.6), 4.6, 3.6, Z, mc('peitoral')));
+  belly(tPt(0.62, 0, 4.4), 8, 3.4, up, mc('abdomen'));
+  [6, -6].forEach((z) => belly(tPt(0.6, z, 2.6), 6, 2.3, up, mc('obliquos')));
+  [5.6, -5.6].forEach((z) => belly(tPt(0.38, z, -3.9), 9.5, 2.9, up, mc('dorsais')));
+  belly(tPt(0.1, 0, -3.8), 6.5, 3.6, up, mc('trapezio'));
+  [2.2, -2.2].forEach((z) => belly(tPt(0.84, z, -3.8), 4.5, 1.8, up, mc('lombares')));
+  // pescoço e cabeça
+  const neckTop = V.add(J.head, V.mul(up, -3));
+  push(D(J.head) - 0.2, capsule(P(V.add(shM, V.mul(up, 1))), P(neckTop), 6, 5, 'f-skin'));
+  const hd = P(J.head);
+  push(D(J.head) + 0.1, `<circle class="f-skin" cx="${f1(hd[0])}" cy="${f1(hd[1])}" r="6.2"/>`);
+  // rostinho: indica para onde a pessoa olha
+  const faceDir = V.norm(V.add(V.mul(n, 1), V.mul(up, 0.15)));
+  const fdD = PR.dirD(faceDir);
+  if (fdD > -0.2) {
+    const fc = P(V.add(J.head, V.mul(faceDir, 4.2)));
+    push(D(J.head) + 0.2, `<circle class="f-face" cx="${f1(fc[0])}" cy="${f1(fc[1])}" r="1.3"/>`);
+  }
+
+  // membros
+  ['R', 'L'].forEach((sd) => {
+    const j = J[sd], side = sd === 'R' ? 1 : -1;
+    const limb = (a3, b3, w1, w2, cls) => push((D(a3) + D(b3)) / 2, capsule(P(a3), P(b3), w1, w2, cls));
+    const antOf = (a3, b3) => {
+      const u = V.norm(V.sub(b3, a3));
+      let ant = V.sub(n, V.mul(u, V.dot(n, u)));
+      if (V.len(ant) < 0.35) ant = V.sub(up, V.mul(u, V.dot(up, u)));
+      return V.norm(ant);
+    };
+    const segBelly = (a3, b3, t, dir3, amt, rxf, ry, cls) => {
+      const base = (D(a3) + D(b3)) / 2;
+      const C = V.add(V.lerp(a3, b3, t), V.mul(dir3, amt));
+      const c = P(C), pa = P(a3), pb = P(b3);
+      const L = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]);
+      push(base + 0.05 + (D(C) - base) * 0.6, ellipseAlong(c, [pb[0] - pa[0], pb[1] - pa[1]], Math.max(2, L * rxf), ry, cls));
+    };
     // pernas
-    [[P.hip, P.kn, P.ft], [mir(P.hip), mir(P.kn), mir(P.ft)]].forEach(([h, k, f]) => {
-      s += fseg(h, k, 5.5, C('thigh')) + fseg(k, f, 5, C('shin'));
-    });
-    s += fseg(P.hip, mir(P.hip), 6, 'f-body');
-    s += fseg(neck, pel, 10, hl.has('abs') ? 'f-hl' : 'f-body');
-    s += fseg(P.sh, mir(P.sh), 6, 'f-body');
-    if (hl.has('chest')) s += `<ellipse class="f-hlf" cx="60" cy="${P.sh[1] + 7}" rx="9" ry="4.5"/>`;
+    limb(j.hip, j.kn, 10.5, 7, 'f-skin');
+    limb(j.kn, j.ft, 7, 4.2, 'f-skin');
+    limb(j.ft, j.to, 3.8, 3, 'f-skin');
+    const ta = antOf(j.hip, j.kn), sa = antOf(j.kn, j.ft);
+    segBelly(j.hip, j.kn, 0.52, ta, 2.8, 0.34, 4, mc('quadriceps'));
+    segBelly(j.hip, j.kn, 0.48, V.mul(ta, -1), 2.6, 0.3, 3.4, mc('isquiotibiais'));
+    segBelly(j.hip, j.kn, 0.3, [0, 0, -side], 3, 0.24, 2.2, mc('adutores'));
+    segBelly(j.kn, j.ft, 0.3, V.mul(sa, -1), 2.2, 0.26, 3, mc('panturrilhas'));
+    const gl = V.add(V.add(j.hip, V.mul(n, -4.4)), [0, 0, -side * 1.6]);
+    belly(gl, 4.6, 4, up, mc('gluteos'), D(j.hip));
+    belly(V.add(j.hip, [0, 0, side * 2.8]), 3.2, 2.2, up, mc('abdutores'), D(j.hip));
     // braços
-    [[P.sh, P.el, P.ha], [mir(P.sh), mir(P.el), mir(P.ha)]].forEach(([sh, el, ha]) => {
-      s += fseg(sh, el, 4.5, C('ua')) + fseg(el, ha, 4, C('fa'));
-      if (hl.has('delt')) s += `<circle class="f-hlf" cx="${sh[0]}" cy="${sh[1]}" r="4.2"/>`;
+    limb(j.sh, j.el, 7.6, 5.6, 'f-skin');
+    limb(j.el, j.ha, 5.6, 3.6, 'f-skin');
+    const hh = P(j.ha);
+    push(D(j.ha) + 0.02, `<circle class="f-skin" cx="${f1(hh[0])}" cy="${f1(hh[1])}" r="2.7"/>`);
+    const aa = antOf(j.sh, j.el);
+    segBelly(j.sh, j.el, 0.56, aa, 1.9, 0.3, 2.8, mc('biceps'));
+    segBelly(j.sh, j.el, 0.5, V.mul(aa, -1), 1.9, 0.32, 2.8, mc('triceps'));
+    segBelly(j.el, j.ha, 0.3, antOf(j.el, j.ha), 0.6, 0.26, 2.4, mc('antebracos'));
+    const dl = P(V.add(j.sh, [0, 0, side * 1.2]));
+    push(D(j.sh) + 0.3, `<circle class="${mc('ombros')}" cx="${f1(dl[0])}" cy="${f1(dl[1])}" r="4.6"/>`);
+  });
+
+  // acessórios
+  const plate = (C3, r, w) => {
+    const c = P(C3), rx = Math.max(w || 1.6, r * Math.abs(PR.c));
+    push(D(C3) + 0.4, `<ellipse class="f-plate" cx="${f1(c[0])}" cy="${f1(c[1])}" rx="${f1(rx)}" ry="${f1(r)}"/>`);
+  };
+  const barBetween = (a3, b3, ext, r) => {
+    const mid = V.lerp(a3, b3, 0.5), ends = [V.add(mid, [0, 0, ext]), V.add(mid, [0, 0, -ext])];
+    const e1 = P(ends[0]), e2 = P(ends[1]);
+    push(D(mid) + 0.35, `<line class="f-bar" x1="${f1(e1[0])}" y1="${f1(e1[1])}" x2="${f1(e2[0])}" y2="${f1(e2[1])}" stroke-width="2"/>`);
+    [ext - 3, -(ext - 3)].forEach((z) => plate(V.add(mid, [0, 0, z]), r));
+  };
+  const p = ex.p;
+  if (p === 'barbell' || p === 'hbar') barBetween(J.R.ha, J.L.ha, p === 'hbar' ? 21 : 26, p === 'hbar' ? 5.5 : 8);
+  else if (p === 'barbell_back') barBetween(V.add(J.R.sh, V.mul(n, -4)), V.add(J.L.sh, V.mul(n, -4)), 26, 8);
+  else if (p === 'barbell_hip') barBetween(V.add(J.R.hip, V.mul(n, 5)), V.add(J.L.hip, V.mul(n, 5)), 26, 8);
+  else if (p === 'dumbbell') {
+    (J.oneArm ? ['R'] : ['R', 'L']).forEach((sd) => {
+      const h = J[sd].ha;
+      const a = P(V.add(h, [0, 0, 4.5])), b = P(V.add(h, [0, 0, -4.5]));
+      push(D(h) + 0.35, `<line class="f-bar" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" stroke-width="2"/>`);
+      [4, -4].forEach((z) => plate(V.add(h, [0, 0, z]), 3.4, 1.6));
     });
-    if (prop === 'hbar') s += fseg([P.ha[0] + 6, P.ha[1]], [120 - P.ha[0] - 6, P.ha[1]], 2.5, 'f-propl');
-    else if (prop) { s += propAt(prop, P.ha, true) + propAt(prop, mir(P.ha), true); }
-    s += fseg(neck, P.head, 3.5, 'f-body');
-    s += `<circle class="f-head" cx="${P.head[0]}" cy="${P.head[1]}" r="6.5"/>`;
-    return s;
+  } else if (p === 'handle') {
+    (J.oneArm ? ['R'] : ['R', 'L']).forEach((sd) => { const h = P(J[sd].ha); push(D(J[sd].ha) + 0.3, `<circle class="f-plate" cx="${f1(h[0])}" cy="${f1(h[1])}" r="1.8"/>`); });
+  } else if (p === 'sled') {
+    const mid = V.lerp(J.R.ft, J.L.ft, 0.5), corners = [];
+    [[-6, -10], [6, 10]].forEach(() => {});
+    const u = V.norm([-0.7, -0.7, 0]);
+    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([a, b]) => corners.push(P(V.add(V.add(V.add(mid, [3, -2, 0]), V.mul(u, a * 9)), [0, 0, b * 13]))));
+    push(D(mid) + 2, `<polygon class="f-envf strong" points="${polyStr(hull(corners))}"/>`);
+  } else if (p === 'pad') {
+    const at = ['shin', 'seated_calf'].includes(ex.a) || ex.a === 'seated_calf' ? 'kn' : 'ft';
+    const a = P(V.add(J.R[at], [0, 0, 9])), b = P(V.add(J.L[at], [0, 0, -9]));
+    push(Math.max(D(J.R[at]), D(J.L[at])) + 0.5, `<line class="f-pad" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" stroke-width="4.5"/>`);
   }
 
-  const P = pose;
-  // membros de trás (mais claros)
-  if (P.kn2) s += fseg(P.hip, P.kn2, 5, 'f-far') + fseg(P.kn2, P.ft2, 4.5, 'f-far') + fseg(P.ft2, toe(P.ft2, P.to2), 3.5, 'f-far');
-  if (P.el2) s += fseg(P.sh, P.el2, 4, 'f-far') + fseg(P.el2, P.ha2, 3.5, 'f-far');
-  // tronco e pernas
-  s += fseg(P.sh, P.hip, 8, hl.has('torso') || hl.has('abs') ? 'f-hl' : 'f-body');
-  if (hl.has('chest')) {
-    const cx = lerp(P.sh[0], P.hip[0], 0.22), cy = lerp(P.sh[1], P.hip[1], 0.22);
-    s += `<circle class="f-hlf" cx="${cx}" cy="${cy}" r="5"/>`;
-  }
-  if (hl.has('glute')) s += `<circle class="f-hlf" cx="${P.hip[0]}" cy="${P.hip[1]}" r="5"/>`;
-  s += fseg(P.hip, P.kn, 6, C('thigh')) + fseg(P.kn, P.ft, 5, C('shin')) + fseg(P.ft, toe(P.ft, P.to), 3.5, 'f-body');
-  // acessórios presos ao corpo
-  if (prop === 'barbell_back') s += propAt('barbell', [P.sh[0] - 2, P.sh[1] - 1]);
-  if (prop === 'barbell_hip') s += propAt('barbell', [P.hip[0], P.hip[1] - 6]);
-  if (prop === 'sled') s += propAt('sled', P.ft);
-  if (prop === 'pad' && pat.hl && (pat.hl.includes('thigh') || pat.hl.includes('shin'))) s += propAt('pad', pat.hl.includes('shin') ? P.kn : P.ft);
-  // braço
-  s += fseg(P.sh, P.el, 4.5, C('ua')) + fseg(P.el, P.ha, 4, C('fa'));
-  if (hl.has('delt')) s += `<circle class="f-hlf" cx="${P.sh[0]}" cy="${P.sh[1]}" r="4.5"/>`;
-  if (['barbell', 'dumbbell', 'handle'].includes(prop)) s += propAt(prop, P.ha);
-  if (prop === 'hbar') s += propAt('dumbbell', P.ha);
-  // cabeça
-  s += fseg(P.sh, P.head, 3.5, 'f-body');
-  s += `<circle class="f-head" cx="${P.head[0]}" cy="${P.head[1]}" r="6.5"/>`;
-  return s;
+  items.sort((a, b) => a[0] - b[0]);
+  return bg + items.map((x) => x[1]).join('');
 }
 
 function figureSVG(ex, opts = {}) {
   const pat = PATTERNS[ex && ex.a] || PATTERNS.curl;
-  const t0 = opts.t != null ? opts.t : 0.5;
-  const pose = poseAt(pat, ex && ex.rev ? 1 - t0 : t0);
-  const rot = ex && ex.r ? `rotate(${ex.r} 50 74)` : '';
-  return `<svg class="fig ${opts.animate ? 'anim' : ''} ${opts.cls || ''}" viewBox="0 -10 120 124" data-ex="${ex ? ex.id : ''}" aria-hidden="true"><g transform="${rot}">${drawPose(pat, pose, ex)}</g></svg>`;
+  const e = ex || { a: 'curl', m: [], s: [] };
+  const t0 = opts.t != null ? opts.t : 0.55;
+  const ang = opts.angle != null ? opts.angle : defaultAngle(e);
+  const pose = poseAt(pat, e.rev ? 1 - t0 : t0);
+  return `<svg class="fig ${opts.animate ? 'anim' : ''} ${opts.cls || ''}" viewBox="0 -10 120 124" data-ex="${e.id || ''}" data-angle="${ang}" ${opts.slow ? 'data-slow="1"' : ''} aria-hidden="true"><g>${render3D(pat, pose, e, ang)}</g></svg>`;
 }
 
 /* ---------------- Loop de animação ---------------- */
@@ -319,15 +502,16 @@ function figTick(now) {
   const list = document.querySelectorAll('svg.fig.anim');
   if (!list.length) { cancelAnimationFrame(figRAF); figRAF = null; return; }
   list.forEach((svg, i) => {
+    const r = svg.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return; // fora da tela
     const ex = EX_LOOKUP(svg.dataset.ex);
     if (!ex) return;
     const pat = PATTERNS[ex.a] || PATTERNS.curl;
-    const period = (pat.speed || 2.6) * 1000;
-    const ph = ((now + i * 370) % period) / period;
-    let t = (1 - Math.cos(ph * Math.PI * 2)) / 2; // vai e volta suave
+    const period = (pat.speed || 2.6) * 1000 * (svg.dataset.slow ? 2.4 : 1);
+    const ph = ((now + (svg.classList.contains('sync') ? 0 : i * 370)) % period) / period;
+    let t = (1 - Math.cos(ph * Math.PI * 2)) / 2;
     if (ex.rev) t = 1 - t;
-    const g = svg.firstElementChild;
-    g.innerHTML = drawPose(pat, poseAt(pat, t), ex);
+    svg.firstElementChild.innerHTML = render3D(pat, poseAt(pat, t), ex, +svg.dataset.angle || 0);
   });
 }
 function startFigures() {

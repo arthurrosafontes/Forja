@@ -71,6 +71,7 @@ const METRICS = {
   reps: { n: 'Repetições', u: 'reps', d: 'Total de repetições feitas no exercício em cada treino. Ajuda a ver sua resistência muscular ao longo do tempo.', f: (h) => h.st.reps },
 };
 SHEETS.exercise = {
+  after(data) { setAngleScroll(data, false); },
   render(data) {
     const e = findEx(data.name, data.id);
     const key = e ? e.id : exKey(data.name);
@@ -83,12 +84,10 @@ SHEETS.exercise = {
     else body = exInstrTab(e, name);
     return `${sheetHead(esc(name), { right: e && e.custom ? `<button class="link" data-action="editCustomEx" data-id="${e.id}">Editar</button>` : '' })}
     <div class="sheet-body" id="sheetBody">
-      <div class="ex-hero">
-        ${e ? figureSVG(e, { animate: true, cls: 'big' }) : `<div class="thumb lg letter">${esc(name[0] || '?')}</div>`}
-        <div class="ex-hero-info"><h2>${esc(name)}</h2>
-          <div class="small muted">${e ? `${EQUIP[e.eq] || ''} · ${e.c ? 'Multiarticular' : 'Isolado'} · ${LEVELS[e.lvl]}` : 'Exercício livre'}</div>
-          <div class="tags">${e ? e.m.map(muscleTag).join('') : ''}</div>
-        </div>
+      ${e ? exMediaHTML(e, data) : `<div class="ex-hero"><div class="thumb lg letter">${esc(name[0] || '?')}</div></div>`}
+      <div class="ex-hero-info"><h2>${esc(name)}</h2>
+        <div class="small muted">${e ? `${EQUIP[e.eq] || ''} · ${e.c ? 'Multiarticular' : 'Isolado'} · ${LEVELS[e.lvl]}` : 'Exercício livre'}</div>
+        <div class="tags center-tags">${e ? e.m.map(muscleTag).join('') + e.s.map((m) => `<span class="mtag sec">${MUSCLES[m] ? MUSCLES[m].n : m}</span>`).join('') : ''}</div>
       </div>
       <a class="btn ghost full yt" href="https://www.youtube.com/results?search_query=${encodeURIComponent('como fazer ' + stripPar(name) + ' ' + (e && e.eq !== 'corporal' ? (EQUIP[e.eq] || '') : '') + ' execução correta')}" target="_blank" rel="noopener">▶ Ver vídeos no YouTube</a>
       ${seg('sheet:tab', [['stats', 'Estatísticas'], ['instr', 'Instruções'], ['hist', 'Histórico']], data.tab)}
@@ -151,6 +150,78 @@ function exHistTab(hist) {
     ${h.ex.note ? `<p class="notes">📝 ${esc(h.ex.note)}</p>` : ''}
   </div>`).join('');
 }
+
+
+/* ---------------- Vídeo (ângulos) e Passo a passo ---------------- */
+function exMediaHTML(e, data) {
+  if (!data.mode) data.mode = 'video';
+  if (data.angle == null) data.angle = defaultAngle(e);
+  const toggle = `<div class="media-toggle">
+    <button class="${data.mode === 'video' ? 'on' : ''}" data-action="mediaMode" data-v="video">▶ Vídeo</button>
+    <button class="${data.mode === 'steps' ? 'on' : ''}" data-action="mediaMode" data-v="steps">☰ Passo a passo</button></div>`;
+  if (data.mode === 'steps') return toggle + exStepsHTML(e, data);
+  return `${toggle}<div class="media-card">
+    <div class="angle-scroller" data-n="${ANGLES.length}">
+      ${ANGLES.map((a, i) => `<div class="angle-slide">${figureSVG(e, { animate: true, angle: i, cls: 'big sync', slow: data.slow })}</div>`).join('')}
+    </div>
+    <div class="angle-label" id="angleLabel">${ANGLES[data.angle].n}</div>
+    <div class="angle-dots">${ANGLES.map((a, i) => `<button class="${i === data.angle ? 'on' : ''}" data-action="goAngle" data-i="${i}" aria-label="Ângulo ${a.n}"></button>`).join('')}</div>
+    <div class="media-bar">
+      <span class="small muted">Arraste para ver outros ângulos</span>
+      <button class="pill-btn ${data.slow ? 'on' : ''}" data-action="toggleSlow">${data.slow ? '🐢 Lento' : '⏩ Normal'}</button>
+    </div>
+  </div>`;
+}
+/* em que posição (0 = início, 1 = fim do movimento) cada passo do texto mostra o boneco */
+const INVERTED = ['squat', 'squat_bw', 'goblet', 'lunge', 'bulgarian', 'pushup', 'dips', 'bench_dips'];
+const KW_UP = ['estendid', 'tire', 'retire', 'suba', 'subir', 'empurre', 'puxe', 'eleve', 'levante', 'estenda', 'flexione', 'contraia', 'abra', 'feche', 'aproxime', 'gire', 'leve', 'traga', 'salte', 'pedale', 'aumente', 'jogue'];
+const KW_DOWN = ['desça', 'desca', 'abaixe', 'dobre', 'agache'];
+const KW_BACK = ['volte', 'retorne', 'desacelere'];
+function stepPhases(e) {
+  const inv = INVERTED.includes(e.a);
+  let t = 0;
+  return (e.steps || []).map((txt) => {
+    const low = norm(txt);
+    let best = null, bi = 1e9;
+    const scan = (list, kind) => list.forEach((w) => { const m = low.match(new RegExp(`(^|[^a-z])${norm(w)}`)); if (m && m.index < bi) { bi = m.index; best = kind; } });
+    scan(KW_UP, 'up'); scan(KW_DOWN, 'down'); scan(KW_BACK, 'back');
+    if (best === 'back') t = 0;
+    else if (best === 'up') t = inv ? 0 : 1;
+    else if (best === 'down') t = inv ? 1 : 0;
+    return t;
+  });
+}
+function exStepsHTML(e, data) {
+  const ang = data.stepAngle != null ? data.stepAngle : defaultAngle(e);
+  const phases = stepPhases(e);
+  const card = (label, text, t, extra = '') => `<div class="step-card">
+    <div class="step-fig">${figureSVG(e, { t: e.rev ? 1 - t : t, angle: ang })}</div>
+    <div class="step-txt"><span class="step-n">${label}</span><p>${esc(text)}</p>${extra}</div></div>`;
+  let html = '<div class="steps">';
+  if (e.prep) html += card('Preparação', e.prep, 0);
+  (e.steps || []).forEach((s, i) => { html += card(`Passo ${i + 1}`, s, phases[i]); });
+  html += '</div>';
+  if (e.tips && e.tips.length) html += `<div class="instr tips-box"><h3>💡 Dicas</h3><ul>${e.tips.map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div>`;
+  html += `<div class="angle-pick small muted">Ver fotos no ângulo: ${ANGLES.map((a, i) => `<button class="mchip ${i === ang ? 'on' : ''}" data-action="stepAngle" data-i="${i}">${a.n}</button>`).join('')}</div>`;
+  return html;
+}
+function setAngleScroll(data, smooth) {
+  const sc = document.querySelector('#sheet .angle-scroller');
+  if (!sc) return;
+  const left = (data.angle || 0) * sc.clientWidth;
+  if (smooth) sc.scrollTo({ left, behavior: 'smooth' }); else sc.scrollLeft = left;
+}
+document.addEventListener('scroll', (ev) => {
+  const sc = ev.target;
+  if (!sc.classList || !sc.classList.contains('angle-scroller')) return;
+  const i = Math.max(0, Math.min(ANGLES.length - 1, Math.round(sc.scrollLeft / (sc.clientWidth || 1))));
+  const t = topSheet();
+  if (t && t.type === 'exercise' && t.data.angle !== i) {
+    t.data.angle = i;
+    document.querySelectorAll('#sheet .angle-dots button').forEach((b, k) => b.classList.toggle('on', k === i));
+    const lab = document.getElementById('angleLabel'); if (lab) lab.textContent = ANGLES[i].n;
+  }
+}, true);
 
 /* ---------------- Seletor de exercícios ---------------- */
 const PICK = {
@@ -224,6 +295,10 @@ SHEETS.customEx = {
 };
 
 Object.assign(actions, {
+  mediaMode(el) { const d = topSheet().data; d.mode = el.dataset.v; refreshSheet(); },
+  goAngle(el) { const d = topSheet().data; d.angle = +el.dataset.i; setAngleScroll(d, true); },
+  toggleSlow() { const d = topSheet().data; d.slow = !d.slow; refreshSheet(); },
+  stepAngle(el) { topSheet().data.stepAngle = +el.dataset.i; refreshSheet(); },
   openExercise(el) { pushSheet('exercise', { id: el.dataset.id || null, name: el.dataset.name || '' }); },
   pickMuscle(el) { const m = el.dataset.m; UI.exMuscle = UI.exMuscle === m ? null : m; render(); },
   rotateBody() { UI.exView = UI.exView === 'back' ? 'front' : 'back'; render(); },

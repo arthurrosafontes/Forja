@@ -533,3 +533,47 @@ body.locked .timer { bottom: calc(env(safe-area-inset-bottom) + 14px); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 .fab-space { height: 72px; }
+
+/* ========== Boneco 3D musculoso ========== */
+[data-theme="dark"] { --fig: #d9d4cf; --fig-2: #c4bdb6; --fig-line: #1a1a1a; --mu-s: #ffb27a; }
+[data-theme="light"] { --fig: #55504c; --fig-2: #625c57; --fig-line: #f4f4f4; --mu-s: #ffb27a; }
+.fig .f-skin, .fig .f-skin polygon, .fig .f-skin circle { fill: var(--fig); stroke: var(--fig-line); stroke-width: .7; stroke-linejoin: round; }
+.fig g.f-skin polygon, .fig g.f-skin circle { stroke-width: 0; }
+.fig g.f-skin { stroke: none; }
+.fig .mu { fill: var(--fig-2); stroke: none; }
+.fig .mu-p { fill: var(--accent); stroke: #b84a00; stroke-width: .4; }
+.fig .mu-s { fill: var(--mu-s); stroke: none; }
+.fig .f-face { fill: var(--fig-line); opacity: .55; }
+.fig .f-plate { fill: #555; stroke: #222; stroke-width: .6; }
+[data-theme="light"] .fig .f-plate { fill: #333; stroke: #000; }
+.fig .f-bar { stroke: #8a8a8a; stroke-linecap: round; }
+.fig .f-pad { stroke: #555; stroke-linecap: round; }
+.fig .f-shadow { fill: #000; opacity: .18; }
+.fig .f-envf.strong { opacity: .55; }
+
+/* ========== Vídeo / Passo a passo ========== */
+.media-toggle { display: flex; background: var(--surface); border-radius: 14px; padding: 4px; gap: 4px; margin-bottom: 10px; }
+.media-toggle button { flex: 1; padding: 10px; border-radius: 10px; font-weight: 700; font-size: 14.5px; color: var(--muted); text-align: center; }
+.media-toggle button.on { background: var(--accent); color: var(--on-accent); }
+.media-card { background: var(--surface); border-radius: 20px; padding: 10px 0 12px; overflow: hidden; }
+.angle-scroller { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.angle-scroller::-webkit-scrollbar { display: none; }
+.angle-slide { flex: 0 0 100%; scroll-snap-align: center; display: grid; place-items: center; }
+.angle-slide .fig.big { width: min(300px, 80vw); height: min(300px, 80vw); }
+.angle-label { text-align: center; font-weight: 700; font-size: 14px; margin-top: 2px; }
+.angle-dots { display: flex; justify-content: center; gap: 8px; margin: 8px 0 4px; }
+.angle-dots button { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); transition: all .2s; }
+.angle-dots button.on { background: var(--accent); width: 22px; border-radius: 5px; }
+.media-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 14px 0; }
+.pill-btn.on { background: var(--accent-soft); color: var(--accent); }
+.ex-hero-info { text-align: center; margin: 12px 0 6px; }
+.center-tags { justify-content: center; }
+.mtag.sec { background: rgba(255, 178, 122, .15); color: #ffb27a; }
+.steps { display: flex; flex-direction: column; gap: 10px; }
+.step-card { display: flex; gap: 12px; align-items: center; background: var(--surface); border-radius: 18px; padding: 10px 14px 10px 10px; }
+.step-fig { flex-shrink: 0; width: 112px; height: 112px; border-radius: 14px; background: var(--surface-2); }
+.step-fig .fig { width: 100%; height: 100%; }
+.step-txt p { margin: 4px 0 0; font-size: 14.5px; }
+.step-n { font-size: 12px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; }
+.tips-box { margin-top: 10px; }
+.angle-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 4px 12px; }
