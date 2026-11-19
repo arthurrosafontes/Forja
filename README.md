@@ -7,14 +7,15 @@ Não precisa de servidor nem banco de dados: os dados ficam salvos no próprio a
 - `index.html` — estrutura da página
 - `style.css` — visual (tema claro/escuro)
 - `data.js` — exercícios (com instruções), programas prontos, conquistas, dúvidas
-- `figures.js` — animações dos exercícios (bonequinho)
+- `figures.js` — poses dos exercícios e desenho 2D de reserva
+- `figure3d.js` + `three.min.js` — personagem 3D realista (Three.js, licença MIT)
 - `body.js` — mapa do corpo (frente/costas)
 - `core.js` — dados, cálculos, gráficos, cronômetro
 - `home.js`, `workout.js`, `plans.js`, `exercises.js`, `activity.js`, `bodyview.js`, `profile.js` — as telas
 - `manifest.json`, `sw.js` — instalação na tela inicial e funcionamento offline
 - `apple-touch-icon.png`, `icon-*.png`, `icon.svg` — ícones (todos na raiz, de propósito)
 
-Ao publicar uma atualização, mude o número em `const CACHE = 'forja-v6'` no `sw.js`.
+Ao publicar uma atualização, mude o número em `const CACHE = 'forja-v7'` no `sw.js`.
 
 ## Testar no computador
 Abra um terminal nesta pasta e rode:

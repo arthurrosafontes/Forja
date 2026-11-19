@@ -668,3 +668,13 @@ body.locked .timer { bottom: calc(env(safe-area-inset-bottom) + 14px); }
 .hiit-run.work .hiit-circle { border-color: var(--accent); } .hiit-run.work .hiit-circle span { color: var(--accent); }
 .hiit-run.rest .hiit-circle { border-color: var(--blue); } .hiit-run.rest .hiit-circle span { color: var(--blue); }
 .hiit-run.done .hiit-circle { border-color: var(--ok); }
+
+/* ========== Visualizador 3D ========== */
+.viewer3d { width: 100%; aspect-ratio: 1 / 1; max-width: 420px; margin: 0 auto; position: relative; touch-action: pan-y; }
+.viewer3d canvas { width: 100% !important; height: 100% !important; display: block; cursor: grab; touch-action: pan-y; }
+.viewer3d canvas:active { cursor: grabbing; }
+.viewer-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+.media-card { background: radial-gradient(120% 90% at 50% 20%, var(--surface-2), var(--surface)); }
+.mus-legend { margin: 6px 0 0; }
+.thumb img.snap3d, .step-fig img.snap3d { width: 100%; height: 100%; object-fit: contain; display: block; }
+.step-fig { width: 120px; height: 120px; }

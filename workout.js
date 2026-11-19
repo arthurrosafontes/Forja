@@ -132,7 +132,7 @@ function workoutExCard(ex, i, d) {
   const tech = ex.tech && TECHNIQUES[ex.tech];
   return `<div class="card ex-card ${doneAll ? 'all-done' : ''}">
     <div class="ex-card-head">
-      <button class="thumb md" data-action="openExercise" data-name="${esc(ex.name)}" data-id="${ex.exId || ''}">${e ? figureSVG(e, { animate: true }) : `<span>${esc((ex.name || '?')[0] || '?')}</span>`}</button>
+      <button class="thumb md" data-action="openExercise" data-name="${esc(ex.name)}" data-id="${ex.exId || ''}"${e && window.Fig3D && Fig3D.ok ? ` data-snap3d="${e.id}|0.55|0|170"` : ''}>${e ? figureSVG(e, { animate: !(window.Fig3D && Fig3D.ok) }) : `<span>${esc((ex.name || '?')[0] || '?')}</span>`}</button>
       <div class="ex-info">
         ${ex.custom ? `<input class="ex-title-input" data-bind="exname" data-ex="${i}" placeholder="Nome do exercício" value="${esc(ex.name)}">` : `<h3>${esc(ex.name)} ${techBadge(ex.tech)}</h3>`}
         <div class="small muted">${e ? muscleNames(e.m.concat(e.s).slice(0, 4)) : 'Exercício livre'}</div>
@@ -320,7 +320,7 @@ SHEETS.instant = {
       <div class="card"><ul class="ex-list">${data.list.map((x, i) => {
         const e = findEx(x.name, x.exId);
         return `<li class="ex-row">
-          <button class="thumb sm" data-action="openExercise" data-id="${x.exId}" data-name="${esc(x.name)}">${e ? figureSVG(e, { t: 0.55 }) : ''}</button>
+          <button class="thumb sm" data-action="openExercise" data-id="${x.exId}" data-name="${esc(x.name)}"${e && window.Fig3D && Fig3D.ok ? ` data-snap3d="${e.id}|0.55|0|150"` : ''}>${e ? figureSVG(e, { t: 0.55 }) : ''}</button>
           <div class="ex-info"><div class="ex-name">${esc(x.name)}</div><div class="ex-meta">${x.sets} séries • ${esc(x.reps)} ${e && exGroup(e) === 'cardio' ? 'min' : 'reps'}</div><div>${e ? muscleTag(e.m[0]) : ''}</div></div>
           <div class="row-btns"><button class="icon-btn sm" data-action="instantSwap" data-i="${i}" aria-label="Trocar">⇄</button><button class="icon-btn sm" data-action="instantRemove" data-i="${i}" aria-label="Remover">✕</button></div>
         </li>`;

@@ -1,13 +1,15 @@
 // Service worker: deixa o app abrir mesmo sem internet.
 // Estratégia: tenta a rede primeiro (para pegar atualizações) e,
 // se a internet estiver ruim ou ausente, usa a cópia salva.
-const CACHE = 'forja-v6'; // mude o número a cada atualização
+const CACHE = 'forja-v7'; // mude o número a cada atualização
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './data.js',
+  './three.min.js',
   './figures.js',
+  './figure3d.js',
   './body.js',
   './core.js',
   './home.js',

@@ -17,7 +17,7 @@ function exListItem(e, action = 'openExercise', extra = '') {
   const hist = exHistory(e.id);
   const best = hist.length ? Math.max(...hist.map((h) => h.st.maxW)) : 0;
   return `<li class="ex-row" data-action="${action}" data-id="${e.id}" data-name="${esc(e.n)}" ${extra}>
-    <div class="thumb sm">${figureSVG(e, { t: 0.55 })}</div>
+    <div class="thumb sm"${window.Fig3D && Fig3D.ok ? ` data-snap3d="${e.id}|0.55|0|150"` : ''}>${figureSVG(e, { t: 0.55 })}</div>
     <div class="ex-info"><div class="ex-name">${esc(e.n)}</div><div class="ex-meta">${muscleNames(e.m)} · ${EQUIP[e.eq] || ''}</div>
     ${hist.length ? `<div class="last">${plural(hist.length, 'treino', 'treinos')}${best ? ` · recorde ${fmtNum(best)} kg` : ''}</div>` : ''}</div>
     <span class="chev">›</span></li>`;
@@ -59,7 +59,7 @@ PAGES.exercises = function () {
 };
 PAGE_INPUT.exercises = function (el, type) {
   const b = el.dataset.bind;
-  if (b === 'exsearch' && type === 'input') { UI.exSearch = el.value; $('#exList').innerHTML = exerciseListHTML(); startFigures(); }
+  if (b === 'exsearch' && type === 'input') { UI.exSearch = el.value; $('#exList').innerHTML = exerciseListHTML(); startFigures(); if (window.Fig3D) Fig3D.fillSnaps(); }
   if (b === 'exequip' && type === 'change') { UI.exEquip = el.value; render(); }
 };
 
@@ -71,7 +71,7 @@ const METRICS = {
   reps: { n: 'Repetições', u: 'reps', d: 'Total de repetições feitas no exercício em cada treino. Ajuda a ver sua resistência muscular ao longo do tempo.', f: (h) => h.st.reps },
 };
 SHEETS.exercise = {
-  after(data) { setAngleScroll(data, false); },
+  after(data) { if (USE3D()) mount3D(data); else setAngleScroll(data, false); },
   render(data) {
     const e = findEx(data.name, data.id);
     const key = e ? e.id : exKey(data.name);
@@ -153,24 +153,50 @@ function exHistTab(hist) {
 
 
 /* ---------------- Vídeo (ângulos) e Passo a passo ---------------- */
+const USE3D = () => !!(window.Fig3D && Fig3D.ok);
+const angList = () => (USE3D() ? ANGLES3D : ANGLES);
 function exMediaHTML(e, data) {
   if (!data.mode) data.mode = 'video';
-  if (data.angle == null) data.angle = defaultAngle(e);
+  if (data.angle == null || data.angle >= angList().length) data.angle = USE3D() ? 0 : defaultAngle(e);
   const toggle = `<div class="media-toggle">
     <button class="${data.mode === 'video' ? 'on' : ''}" data-action="mediaMode" data-v="video">▶ Vídeo</button>
     <button class="${data.mode === 'steps' ? 'on' : ''}" data-action="mediaMode" data-v="steps">☰ Passo a passo</button></div>`;
   if (data.mode === 'steps') return toggle + exStepsHTML(e, data);
+  const dots = `<div class="angle-dots">${angList().map((a, i) => `<button class="${i === data.angle ? 'on' : ''}" data-action="goAngle" data-i="${i}" aria-label="Ângulo ${a.n}"></button>`).join('')}</div>`;
+  const bar = `<div class="media-bar">
+      <span class="small muted">${USE3D() ? 'Arraste para girar a câmera' : 'Arraste para ver outros ângulos'}</span>
+      <button class="pill-btn ${data.slow ? 'on' : ''}" data-action="toggleSlow">${data.slow ? '🐢 Lento' : '⏩ Normal'}</button>
+    </div>`;
+  if (USE3D()) {
+    return `${toggle}<div class="media-card">
+      <div class="viewer3d" id="viewer3d"><div class="viewer-loading">Carregando 3D…</div></div>
+      <div class="angle-label" id="angleLabel">${ANGLES3D[data.angle].n}</div>
+      ${dots}${bar}
+      <div class="legend center mus-legend"><span><i class="lg-dot" style="background:#ff3a12"></i>Principal</span><span><i class="lg-dot" style="background:#ff9a52"></i>Secundário</span></div>
+    </div>`;
+  }
   return `${toggle}<div class="media-card">
     <div class="angle-scroller" data-n="${ANGLES.length}">
       ${ANGLES.map((a, i) => `<div class="angle-slide">${figureSVG(e, { animate: true, angle: i, cls: 'big sync', slow: data.slow })}</div>`).join('')}
     </div>
     <div class="angle-label" id="angleLabel">${ANGLES[data.angle].n}</div>
-    <div class="angle-dots">${ANGLES.map((a, i) => `<button class="${i === data.angle ? 'on' : ''}" data-action="goAngle" data-i="${i}" aria-label="Ângulo ${a.n}"></button>`).join('')}</div>
-    <div class="media-bar">
-      <span class="small muted">Arraste para ver outros ângulos</span>
-      <button class="pill-btn ${data.slow ? 'on' : ''}" data-action="toggleSlow">${data.slow ? '🐢 Lento' : '⏩ Normal'}</button>
-    </div>
+    ${dots}${bar}
   </div>`;
+}
+function mount3D(data) {
+  const box = document.getElementById('viewer3d');
+  if (!box || !USE3D()) return;
+  const e = findEx(data.name, data.id);
+  if (!e) return;
+  box.innerHTML = '';
+  Fig3D.mount(box, e, {
+    angle: data.angle, slow: data.slow,
+    onAngle: (i) => {
+      data.angle = i;
+      document.querySelectorAll('#sheet .angle-dots button').forEach((b, k) => b.classList.toggle('on', k === i));
+      const lab = document.getElementById('angleLabel'); if (lab) lab.textContent = ANGLES3D[i].n;
+    },
+  });
 }
 /* em que posição (0 = início, 1 = fim do movimento) cada passo do texto mostra o boneco */
 const INVERTED = ['squat', 'squat_bw', 'goblet', 'lunge', 'bulgarian', 'pushup', 'dips', 'bench_dips'];
@@ -192,17 +218,17 @@ function stepPhases(e) {
   });
 }
 function exStepsHTML(e, data) {
-  const ang = data.stepAngle != null ? data.stepAngle : defaultAngle(e);
+  const ang = data.stepAngle != null && data.stepAngle < angList().length ? data.stepAngle : (USE3D() ? 0 : defaultAngle(e));
   const phases = stepPhases(e);
   const card = (label, text, t, extra = '') => `<div class="step-card">
-    <div class="step-fig">${figureSVG(e, { t: e.rev ? 1 - t : t, angle: ang })}</div>
+    <div class="step-fig"${USE3D() ? ` data-snap3d="${e.id}|${t}|${ang}|240"` : ''}>${figureSVG(e, { t: e.rev ? 1 - t : t, angle: USE3D() ? defaultAngle(e) : ang })}</div>
     <div class="step-txt"><span class="step-n">${label}</span><p>${esc(text)}</p>${extra}</div></div>`;
   let html = '<div class="steps">';
   if (e.prep) html += card('Preparação', e.prep, 0);
   (e.steps || []).forEach((s, i) => { html += card(`Passo ${i + 1}`, s, phases[i]); });
   html += '</div>';
   if (e.tips && e.tips.length) html += `<div class="instr tips-box"><h3>💡 Dicas</h3><ul>${e.tips.map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div>`;
-  html += `<div class="angle-pick small muted">Ver fotos no ângulo: ${ANGLES.map((a, i) => `<button class="mchip ${i === ang ? 'on' : ''}" data-action="stepAngle" data-i="${i}">${a.n}</button>`).join('')}</div>`;
+  html += `<div class="angle-pick small muted">Ver fotos no ângulo: ${angList().map((a, i) => `<button class="mchip ${i === ang ? 'on' : ''}" data-action="stepAngle" data-i="${i}">${a.n}</button>`).join('')}</div>`;
   return html;
 }
 function setAngleScroll(data, smooth) {
@@ -259,6 +285,7 @@ SHEETS.pick = {
     data.q = el.value;
     const list = allExercises().filter((e) => exMatches(e, data.q, data.m || '', ''));
     $('#pickList').innerHTML = list.map((e) => exListItem(e, 'pickEx')).join('') || `<li>${emptyState('Nada encontrado', 'Crie um exercício personalizado.')}</li>`;
+    if (window.Fig3D) Fig3D.fillSnaps();
   },
 };
 
@@ -296,8 +323,8 @@ SHEETS.customEx = {
 
 Object.assign(actions, {
   mediaMode(el) { const d = topSheet().data; d.mode = el.dataset.v; refreshSheet(); },
-  goAngle(el) { const d = topSheet().data; d.angle = +el.dataset.i; setAngleScroll(d, true); },
-  toggleSlow() { const d = topSheet().data; d.slow = !d.slow; refreshSheet(); },
+  goAngle(el) { const d = topSheet().data; d.angle = +el.dataset.i; if (USE3D()) Fig3D.setAngle(d.angle); else setAngleScroll(d, true); },
+  toggleSlow(el) { const d = topSheet().data; d.slow = !d.slow; if (USE3D()) { Fig3D.setSlow(d.slow); el.classList.toggle('on', d.slow); el.textContent = d.slow ? '🐢 Lento' : '⏩ Normal'; } else refreshSheet(); },
   stepAngle(el) { topSheet().data.stepAngle = +el.dataset.i; refreshSheet(); },
   openExercise(el) { pushSheet('exercise', { id: el.dataset.id || null, name: el.dataset.name || '' }); },
   pickMuscle(el) { const m = el.dataset.m; UI.exMuscle = UI.exMuscle === m ? null : m; render(); },

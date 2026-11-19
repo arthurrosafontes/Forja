@@ -403,7 +403,7 @@ const muscleTag = (m) => (MUSCLES[m] ? `<span class="mtag" style="--tc:${GROUPS[
 const emptyState = (title, text, icon = '') => `<div class="empty">${icon ? `<div class="empty-ic">${icon}</div>` : ''}<b>${title}</b>${text}</div>`;
 function exThumb(name, id, size = 'sm') {
   const e = findEx(name, id);
-  if (e) return `<div class="thumb ${size}">${figureSVG(e, { t: 0.55 })}</div>`;
+  if (e) return `<div class="thumb ${size}"${window.Fig3D && Fig3D.ok ? ` data-snap3d="${e.id}|0.55|0|150"` : ''}>${figureSVG(e, { t: 0.55 })}</div>`;
   return `<div class="thumb ${size} letter">${esc((name || '?').trim()[0] || '?').toUpperCase()}</div>`;
 }
 const techBadge = (t) => (t && TECHNIQUES[t] ? `<span class="tech" title="${TECHNIQUES[t].n}">${TECHNIQUES[t].s}</span>` : '');
@@ -430,6 +430,7 @@ function render() {
   v.innerHTML = (PAGES[UI.tab] || PAGES.home)();
   document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === UI.tab));
   startFigures();
+  if (window.Fig3D) Fig3D.fillSnaps();
 }
 function topSheet() { return UI.stack[UI.stack.length - 1]; }
 function drawSheet(keepScroll) {
@@ -449,6 +450,7 @@ function drawSheet(keepScroll) {
   if (body) body.scrollTop = keepScroll ? top.scroll || 0 : 0;
   if (SHEETS[top.type].after) SHEETS[top.type].after(top.data);
   startFigures();
+  if (window.Fig3D) Fig3D.fillSnaps();
   if (top.type === 'workout') requestWake(); else if (!UI.stack.some((x) => x.type === 'workout')) releaseWake();
 }
 function saveScroll() { const t = topSheet(), b = $('#sheetBody'); if (t && b) t.scroll = b.scrollTop; }
