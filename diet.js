@@ -239,6 +239,7 @@ async function gFetch(path, opts = {}) {
     if (res.status === 400 && /api key|API_KEY/i.test(msg)) throw new AiError('key', 'Chave inválida. Confira se copiou a chave inteira em Configurar IA.');
     if (res.status === 401 || res.status === 403) throw new AiError('key', 'A chave não tem permissão para usar o Gemini. Verifique a chave no Google AI Studio.');
     if (res.status === 404) throw new AiError('model', msg || 'Modelo não encontrado.');
+    if ([500, 502, 503, 504].includes(res.status) || /overloaded|high demand|unavailable/i.test(msg)) throw new AiError('busy', 'Os servidores de IA do Google estão sobrecarregados agora. Isso é temporário — tente de novo em alguns minutos (sem nenhum custo).');
     throw new AiError('other', `Erro da IA (${res.status}). ${msg}`.trim());
   }
   return body;
@@ -252,8 +253,9 @@ async function pickModel() {
     const v = parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || '0');
     return v * 10 - (/lite/.test(n) ? 3 : 0) - (/preview/.test(n) ? 1 : 0) + (/latest/.test(n) ? 0.5 : 0);
   };
-  const best = names.filter((n) => score(n) >= 0).sort((a, b) => score(b) - score(a))[0];
-  S.ai.model = best || 'gemini-flash-latest';
+  const ranked = names.filter((n) => score(n) >= 0).sort((a, b) => score(b) - score(a));
+  S.ai.cands = (ranked.length ? ranked : ['gemini-flash-latest']).slice(0, 5);
+  S.ai.model = S.ai.cands[0];
   S.ai.models = names.length;
   save();
   return S.ai.model;
@@ -263,12 +265,28 @@ async function geminiJSON(parts) {
   if (aiUsageToday() >= S.ai.limit) throw new AiError('limit', `Você chegou ao limite de ${S.ai.limit} análises por dia que definiu no app. Amanhã zera. (Dá para mudar em Configurar IA.)`);
   const body = { contents: [{ role: 'user', parts }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } };
   const call = async (model) => gFetch(`/models/${model}:generateContent`, { method: 'POST', body: JSON.stringify(body) });
-  let model = S.ai.model || await pickModel();
-  let res;
-  try { res = await call(model); } catch (e) {
-    if (e.code !== 'model') throw e;
-    model = await pickModel(); res = await call(model);
+  if (!S.ai.model || !S.ai.cands || !S.ai.cands.length) await pickModel();
+  // ordem: o último modelo que funcionou primeiro, depois os outros grátis da conta
+  const order = [S.ai.model, ...S.ai.cands.filter((m) => m !== S.ai.model)];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  let res = null, lastErr = null;
+  outer: for (let mi = 0; mi < order.length; mi++) {
+    const model = order[mi];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (mi || attempt) aiProgress(mi ? 'Servidor ocupado — tentando outro modelo de IA…' : 'Servidor ocupado — tentando de novo…');
+        res = await call(model);
+        if (S.ai.model !== model) { S.ai.model = model; save(); }
+        break outer;
+      } catch (e) {
+        lastErr = e;
+        if (e.code === 'busy' && attempt === 0) { await wait(1800); continue; } // 1 nova tentativa no mesmo modelo
+        if (e.code === 'busy' || e.code === 'quota' || e.code === 'model') break; // passa para o próximo modelo
+        throw e; // chave inválida, sem internet etc.
+      }
+    }
   }
+  if (!res) throw lastErr || new AiError('busy', 'A IA não respondeu. Tente de novo em alguns minutos.');
   S.ai.usage = { date: todayKey(), n: aiUsageToday() + 1 };
   save();
   const txt = ((res.candidates || [])[0] || {}).content;
@@ -276,6 +294,10 @@ async function geminiJSON(parts) {
   if (!raw) throw new AiError('empty', 'A IA não respondeu. Tente outra foto.');
   try { return JSON.parse(raw.replace(/^```(?:json)?|```$/g, '').trim()); }
   catch (e) { throw new AiError('parse', 'A resposta da IA veio num formato inesperado. Tente de novo.'); }
+}
+function aiProgress(msg) {
+  const t = topSheet(); if (t && t.type === 'aiMeal') t.data.progress = msg;
+  const el = document.getElementById('aiProgress'); if (el) el.textContent = msg;
 }
 function foodRefList() { return allFoods().map((f) => `${f.id}|${f.n}`).join('\n'); }
 const AI_RULES = `Responda SOMENTE com JSON neste formato:
@@ -311,11 +333,11 @@ SHEETS.aiMeal = {
     }
     const img = data.img ? `<img class="ai-img" src="${data.img}" alt="">` : '';
     if (data.status === 'loading') {
-      return `${head}<div class="sheet-body" id="sheetBody">${img}<div class="ai-loading"><div class="spinner"></div><b>Analisando a refeição…</b><span class="small muted">Identificando alimentos e estimando as porções</span></div></div>`;
+      return `${head}<div class="sheet-body" id="sheetBody">${img}<div class="ai-loading"><div class="spinner"></div><b>Analisando a refeição…</b><span class="small muted" id="aiProgress">${esc(data.progress || 'Identificando alimentos e estimando as porções')}</span></div></div>`;
     }
     if (data.status === 'error') {
       return `${head}<div class="sheet-body" id="sheetBody">${img}<div class="card">${emptyState('Não deu certo', esc(data.err), '⚠️')}</div>
-        ${data.code === 'key' || data.code === 'nokey' ? '<button class="btn primary full" data-action="openAiSetup">Configurar IA</button>' : `<button class="btn primary full" data-action="${data.mode === 'text' ? 'aiRetryText' : 'aiPhoto'}">Tentar de novo</button>`}
+        ${data.code === 'key' || data.code === 'nokey' ? '<button class="btn primary full" data-action="openAiSetup">Configurar IA</button>' : `<button class="btn primary full" data-action="${data.mode === 'text' ? 'aiRetryText' : 'aiRetryPhoto'}">Tentar de novo</button>${data.mode === 'text' ? '' : '<button class="btn ghost full" data-action="aiPhoto">Tirar outra foto</button>'}`}
         <button class="btn ghost full" data-action="openFood" data-meal="${data.meal}">Adicionar manualmente</button></div>`;
     }
     const tot = { kcal: 0, p: 0, c: 0, f: 0 };
@@ -469,6 +491,13 @@ Object.assign(actions, {
     pushSheet('aiMeal', { mode: 'text', status: 'input', meal: mealByTime(), items: [] });
   },
   aiRunText() { runText(topSheet().data); },
+  async aiRetryPhoto() {
+    const data = topSheet().data;
+    data.status = 'loading'; data.progress = ''; refreshSheet();
+    try { const r = await analyzePhoto(data.img); data.items = aiToItems(r); data.obs = r.observacao || ''; data.status = 'done'; }
+    catch (e) { data.status = 'error'; data.err = e.message; data.code = e.code; }
+    if (topSheet() && topSheet().data === data) refreshSheet();
+  },
   aiRetryText() { const d = topSheet().data; d.status = 'input'; refreshSheet(); },
   aiAdj(el) { const it = topSheet().data.items[+el.dataset.i]; it.g = Math.max(0, it.g + +el.dataset.d); refreshSheet(); },
   aiRemove(el) { topSheet().data.items.splice(+el.dataset.i, 1); refreshSheet(); },

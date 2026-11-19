@@ -15,7 +15,7 @@ Não precisa de servidor nem banco de dados: os dados ficam salvos no próprio a
 - `manifest.json`, `sw.js` — instalação na tela inicial e funcionamento offline
 - `apple-touch-icon.png`, `icon-*.png`, `icon.svg` — ícones (todos na raiz, de propósito)
 
-Ao publicar uma atualização, mude o número em `const CACHE = 'forja-v7'` no `sw.js`.
+Ao publicar uma atualização, mude o número em `const CACHE = 'forja-v8'` no `sw.js`.
 
 ## Testar no computador
 Abra um terminal nesta pasta e rode:
